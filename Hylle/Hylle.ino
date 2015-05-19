@@ -1,70 +1,37 @@
 // Libraries
 #include <Wire.h>
+#include <Adafruit_NeoPixel.h>
 
-// Class: Student
-class Student
-{
-  public:
-   int id;
-   int on_pin;
-   int off_pin;
-   virtual void config(int id, int on_pin, int off_pin) {
-     // Variables
-     this->id = id; 
-     this->on_pin = on_pin; 
-     this->off_pin = off_pin;
-     
-     // Pin mode
-     pinMode(this->on_pin, OUTPUT);
-     pinMode(this->off_pin, OUTPUT);
-    
-     // Default     
-     digitalWrite(this->on_pin, HIGH);
-     digitalWrite(this->off_pin, LOW);
-   }
-   virtual void setHome() { 
-     //digitalWrite(this->on_pin, LOW);
-     //digitalWrite(this->off_pin, HIGH);
-     Serial.print("Set pin ");
-     Serial.print(this->on_pin);
-     Serial.println(" low");
-     Serial.print("Set pin ");
-     Serial.print(this->off_pin);
-     Serial.println(" high");
-     Serial.println("Student went home");
-   }
-};
+// Pins
+#define COMPIN   4
+#define DIGPIN   6
+#define PXLCNT   24
 
-
-// Students
+// Config
 const int STUDENT_COUNT = 3;
-Student *stud1;
-Student *stud2;
-Student *stud3;
+const int BRIGHTNESS = 255;
 
-Student *students[STUDENT_COUNT];
+// Intialize NeoPixel strip
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(PXLCNT, DIGPIN, NEO_GRB + NEO_KHZ800);
 
 // Setup
 void setup() {
   // Debug
   Serial.begin(9600);
   Serial.println("Setup...");
-    
-  // Configure students
-  stud1 = new Student();
-  stud1->config(219, 3, 5);
-  stud2 = new Student();
-  stud2->config(242, 6, 9);
-  stud3 = new Student();
-  stud3->config(27, 10, 11);
+
+  // NeoPixel
+  strip.begin();
+  strip.setBrightness(BRIGHTNESS);
   
-  //students = {stud1, stud2, stud3};
-  students[0] = stud1;
-  students[1] = stud2;
-  students[2] = stud3;
+  for(uint16_t i = 0; i < strip.numPixels(); i++) // While waiting for wall controller
+    strip.setPixelColor(i, strip.Color(255, 102, 0)); // Orange
   
-  Wire.begin(4);                // join i2c bus with address #4
-  Wire.onReceive(receiveEvent); // register event
+  strip.show();
+
+  // Join I2C bus
+  Wire.begin(COMPIN);
+  Wire.onReceive(receiveEvent);
   
   Serial.println("Listening...");
 }
@@ -73,33 +40,32 @@ void setup() {
 // Loop
 void loop() {
   delay(100);
-  //stud1->setHome();
 }
 
-void sendHome(int sid) 
+// Set shelf light
+void setShelfLight(int shelfId, int onoroff) 
 {
   Serial.print("RECEIVED: ");
-  Serial.println(sid);
+  Serial.println(shelfId);
+  Serial.print("SET: ");
+  Serial.println(onoroff);  
   Serial.println();
   
-  for (int i = 0; i < STUDENT_COUNT; i++) {
-    Serial.println();
-    
-    if (sid == students[i]->id) {
-       Serial.print("Sending student ");
-       Serial.print(sid);
-       Serial.println(" home!");
-       
-       Serial.println(students[i]->on_pin);
-       Serial.println(students[i]->off_pin);
-       //students[i]->setHome();
-       digitalWrite(students[i]->on_pin, LOW);
-       digitalWrite(students[i]->off_pin, HIGH);
-    }
-  }  
+  // Status: School
+  if (onoroff == 1) {
+    strip.setPixelColor(shelfId, strip.Color(0, 255, 0)); // Green
+  }
+  // Status: Home
+  else {
+    strip.setPixelColor(shelfId, strip.Color(255, 0, 0)); // Red
+  }
+  
+  // Update
+  strip.show();
 }
 
 void receiveEvent(int howMany)
 {
-  sendHome(Wire.read());
+  if (howMany == 2)
+    setShelfLight(Wire.read(), Wire.read());
 }
