@@ -45,11 +45,11 @@ void loop() {
 // Set shelf light
 void setShelfLight(int shelfId, int onoroff) 
 {
-  Serial.print("RECEIVED: ");
-  Serial.println(shelfId);
-  Serial.print("SET: ");
-  Serial.println(onoroff);  
-  Serial.println();
+  Serial.println("Update shelf:");
+  Serial.print(" * ID: ");
+  Serial.print(shelfId);
+  Serial.print(", set: ");
+  Serial.println(onoroff);
   
   // Status: School
   if (onoroff == 1) {

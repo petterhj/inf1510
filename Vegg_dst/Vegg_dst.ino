@@ -3,6 +3,7 @@
 #include <Adafruit_NFCShield_I2C.h>
 #include <Adafruit_NeoPixel.h>
 #include <avr/power.h>
+#include <MemoryFree.h>
 
 // Pins
 #define COMPIN   4
@@ -14,15 +15,21 @@
 #define RESET   (3)
 
 // Config
-const int RESET_TAG = 498;
-const int STUDENT_COUNT = 3;
-const int BRIGHTNESS = 25;
+const int NFC_TIMEOUT    = 750;
+const int RESET_TAG      = 498;
+const int STUDENT_COUNT  = 3;
+const int BRIGHTNESS_L1  = 25;
+const int BRIGHTNESS_L2  = 55;
+const int BRIGHTNESS_L3  = 75;
 
 // Intialize NFC shield
 Adafruit_NFCShield_I2C nfc(IRQ, RESET);
 
 // Intialize NeoPixel ring
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(PXLCNT, DIGPIN, NEO_GRB + NEO_KHZ800);
+
+uint8_t uid[] = {0, 0, 0, 0, 0, 0, 0}; // Buffer to store the returned UID
+uint8_t uidLength; // Length of the UID
 
 // Class: Student
 class Student
@@ -96,14 +103,18 @@ class Controller
       // NFC
       nfc.begin();
       nfc.SAMConfig();
+      nfc.setPassiveActivationRetries(NFC_TIMEOUT);
   
       // NeoPixel
       strip.begin();
-      strip.setBrightness(BRIGHTNESS);
+      strip.setBrightness(BRIGHTNESS_L1);
       strip.show();
       
       // Speaker
       pinMode(SPKRPIN, OUTPUT);
+      
+      // Distance sensor
+      pinMode(DISTPIN, INPUT);
   
       // Set student slots to NULL
       for (int i = 0; i < STUDENT_COUNT; i++)
@@ -114,9 +125,47 @@ class Controller
     virtual void ready() {
       // Feedback
       this->animateWipe(strip.Color(255, 0, 0), 10);
+    }
+    
+    // Tag detected
+    virtual void tagDetected() {
+      // Read tag ID
+      int tagId = 0;
       
-      // Listen for NFC tag
-      this->listen();
+      for (uint8_t i = 0; i < uidLength; i++) 
+        tagId += uid[i];
+      
+       Serial.print(" * Tag detected, ID: ");
+       Serial.println(tagId);
+      
+      if (tagId != RESET_TAG) {
+        // Register student
+        this->registerStudent(tagId);
+      }
+      else {
+        // Reset all (master tag)
+        this->reset();
+      }
+    }
+    
+    // Adjust light levels
+    virtual void adjustLightLevels() {
+      // Read and calculate (approximate) distance
+      int sensorValue = analogRead(DISTPIN);
+      delay(50);
+      int cm = (sensorValue * 0.497) * 2.54;
+      int lvl = 100;
+      
+      if (cm < 200) {
+        lvl = (200 - (cm * 2));
+      }
+      
+      Serial.print(cm);
+      Serial.print("cm -- level: ");
+      Serial.println(lvl);
+      
+      strip.setBrightness(lvl);
+      strip.show();
     }
     
     // Add student
@@ -183,34 +232,6 @@ class Controller
       
       // Ready
       this->ready();
-    }
-    
-    // State: Listening
-    virtual void listen() {
-      uint8_t uid[] = {0, 0, 0, 0, 0, 0, 0}; // Buffer to store the returned UID
-      uint8_t uidLength; // Length of the UID
-      
-      Serial.println("Listening...");
-      
-      if (nfc.readPassiveTargetID(PN532_MIFARE_ISO14443A, uid, &uidLength)) {          
-        // Read tag ID
-        int tagId = 0;
-        
-        for (uint8_t i = 0; i < uidLength; i++) 
-          tagId += uid[i];
-        
-         Serial.print(" * Tag detected, ID: ");
-         Serial.println(tagId);
-        
-        if (tagId != RESET_TAG) {
-          // Register student
-          this->registerStudent(tagId);
-        }
-        else {
-          // Reset all (master tag)
-          this->reset();
-        }
-      }
     }
     
     // State: Working
@@ -323,13 +344,13 @@ class Controller
       this->ready();
     }
 };
-
+Controller *ctrl;
 // Setup
 void setup() {
   Serial.begin(9600);
   
   // Controller
-  Controller *ctrl = new Controller();
+  ctrl = new Controller();
   
   // Students
   ctrl->addStudent(new Student(475, 0, "Ida"));
@@ -340,6 +361,15 @@ void setup() {
   ctrl->ready();
 }
 
-// Loop
+// Loop: Listener  
 void loop() {
+  // Detect NFC tag
+  if (nfc.readPassiveTargetID(PN532_MIFARE_ISO14443A, uid, &uidLength)) {
+    ctrl->tagDetected();
+  }
+  // Read distance sensor
+  else {
+    ctrl->adjustLightLevels();
+  }
 }
+
