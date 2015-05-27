@@ -5,7 +5,7 @@
 // Pins
 #define COMPIN   4
 #define DIGPIN   6
-#define PXLCNT   24
+#define PXLCNT   3
 
 // Config
 const int STUDENT_COUNT = 3;
@@ -24,10 +24,10 @@ void setup() {
   strip.begin();
   strip.setBrightness(BRIGHTNESS);
   
-  for(uint16_t i = 0; i < strip.numPixels(); i++) // While waiting for wall controller
-    strip.setPixelColor(i, strip.Color(255, 102, 0)); // Orange
+  //for(uint16_t i = 0; i < strip.numPixels(); i++) // While waiting for wall controller
+    //strip.setPixelColor(i, 0); // Off
   
-  strip.show();
+  //strip.show();
 
   // Join I2C bus
   Wire.begin(COMPIN);

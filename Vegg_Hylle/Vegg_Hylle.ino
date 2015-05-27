@@ -10,7 +10,9 @@
 #define DISTPIN  0
 #define SPKRPIN  8
 #define DIGPIN   6
+#define DIGPINS  5
 #define PXLCNT   24
+#define PXLCNTS  3
 #define IRQ     (2)
 #define RESET   (3)
 
@@ -24,8 +26,9 @@ const int BASE_BRIGHTNESS  = 55;
 // Intialize NFC shield
 Adafruit_NFCShield_I2C nfc(IRQ, RESET);
 
-// Intialize NeoPixel ring
-Adafruit_NeoPixel strip = Adafruit_NeoPixel(PXLCNT, DIGPIN, NEO_GRB + NEO_KHZ800);
+// Intialize NeoPixel
+Adafruit_NeoPixel ring = Adafruit_NeoPixel(PXLCNT, DIGPIN, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(PXLCNTS, DIGPINS, NEO_GRB + NEO_KHZ800);
 
 uint8_t uid[] = {0, 0, 0, 0, 0, 0, 0}; // Buffer to store the returned UID
 uint8_t uidLength; // Length of the UID
@@ -69,7 +72,8 @@ class Student
     Serial.print(" * Updating shelf: ");
     Serial.print(this->shelfId);
     Serial.print(", turn ");
-         
+    
+    /*
     // Communicate
     Wire.beginTransmission(COMPIN);
     Wire.write(this->shelfId);
@@ -84,6 +88,16 @@ class Student
     }
      
     Wire.endTransmission();
+    */
+    
+    if (this->atSchool) {
+      strip.setPixelColor(this->shelfId, strip.Color(0, 255, 0)); // Green
+      Serial.println("ON");
+    }
+    else {
+      strip.setPixelColor(this->shelfId, strip.Color(255, 0, 0)); // Red
+    }
+    strip.show();
   }  
 };
 
@@ -97,7 +111,7 @@ class Controller
       Serial.println("Initializing controller..");
       
       // Join I2C bus
-      Wire.begin();
+      //Wire.begin();
     
       // NFC
       nfc.begin();
@@ -105,9 +119,11 @@ class Controller
       nfc.setPassiveActivationRetries(NFC_TIMEOUT);
   
       // NeoPixel
+      ring.begin();
+      ring.setBrightness(BASE_BRIGHTNESS);
+      ring.show();
       strip.begin();
-      strip.setBrightness(50);
-      strip.show();
+      strip.setBrightness(MAX_BRIGHTNESS);
       
       // Speaker
       pinMode(SPKRPIN, OUTPUT);
@@ -123,7 +139,7 @@ class Controller
     // State: Ready
     virtual void ready() {
       // Feedback
-      this->animateWipe(strip.Color(255, 155, 0), 10); // Orange
+      this->animateWipe(ring.Color(255, 155, 0), 10); // Orange
     }
     
     // Tag detected
@@ -163,8 +179,8 @@ class Controller
       Serial.print("cm -- level: ");
       Serial.println(lvl);
       
-      strip.setBrightness(lvl);
-      strip.show();
+      ring.setBrightness(lvl);
+      ring.show();
     }
     
     // Add student
@@ -235,45 +251,45 @@ class Controller
     
     // State: Working
     virtual void working() {
-      this->animateChase(strip.Color(255, 155, 0)); // Orange
+      this->animateChase(ring.Color(255, 155, 0)); // Orange
     }
     
     // Result: Success
     virtual void success() {
       this->playTone(1001, 75);
-      animateSolid(strip.Color(0, 255, 0));
+      animateSolid(ring.Color(0, 255, 0));
       this->playTone(749, 200);
       delay(100);
       animateSolid(0);
       delay(100);
-      animateSolid(strip.Color(0, 255, 0));
+      animateSolid(ring.Color(0, 255, 0));
       delay(200);
       animateSolid(0);
       delay(200);
-      animateSolid(strip.Color(0, 255, 0));
+      animateSolid(ring.Color(0, 255, 0));
       delay(2000); 
     }
     
     // Result: Check
     virtual void check() {
       this->playTone(749, 150);
-      animateSolid(strip.Color(0, 255, 0));
+      animateSolid(ring.Color(0, 255, 0));
       delay(1000);
     }
     
     // Result: Error
     virtual void error() {
       this->playTone(1898, 75);
-      animateSolid(strip.Color(255, 0, 0));
+      animateSolid(ring.Color(255, 0, 0));
       this->playTone(1126, 150);
       delay(100);
       animateSolid(0);
       delay(100);
-      animateSolid(strip.Color(255, 0, 0));
+      animateSolid(ring.Color(255, 0, 0));
       delay(200);
       animateSolid(0);
       delay(200);
-      animateSolid(strip.Color(255, 0, 0));
+      animateSolid(ring.Color(255, 0, 0));
       delay(2000); 
     }
     
@@ -281,15 +297,15 @@ class Controller
     virtual void animateChase(uint32_t color, uint8_t wait = 50) {
       for (int j = 0; j < 10; j++) {
         for (int q = 0; q < 3; q++) {
-          for (int i = 0; i < strip.numPixels(); i = i + 3) {
-            strip.setPixelColor(i + q, color);
+          for (int i = 0; i < ring.numPixels(); i = i + 3) {
+            ring.setPixelColor(i + q, color);
           }
-          strip.show();
+          ring.show();
          
           delay(wait);
          
-          for (int i = 0; i < strip.numPixels(); i = i + 3) {
-            strip.setPixelColor(i + q, 0);
+          for (int i = 0; i < ring.numPixels(); i = i + 3) {
+            ring.setPixelColor(i + q, 0);
           }
         }
       }
@@ -297,19 +313,19 @@ class Controller
     
     // Animation: Wipe
     void animateWipe(uint32_t color, uint8_t wait) {
-      for(uint16_t i=0; i<strip.numPixels(); i++) {
-          strip.setPixelColor(i, color); 
-          strip.show();
+      for(uint16_t i=0; i<ring.numPixels(); i++) {
+          ring.setPixelColor(i, color); 
+          ring.show();
           delay(wait);
       }
     }
     
     // Animation: Solid
     void animateSolid(uint32_t color) {
-      for(uint16_t i = 0; i < strip.numPixels(); i++) {
-        strip.setPixelColor(i, color);
+      for(uint16_t i = 0; i < ring.numPixels(); i++) {
+        ring.setPixelColor(i, color);
       }
-      strip.show();
+      ring.show();
     }
     
     // Sound: Tone
@@ -326,7 +342,7 @@ class Controller
     void reset() {
       Serial.println("Resetting...");
       
-      this->animateChase(strip.Color(0, 0, 255), 25);
+      this->animateChase(ring.Color(0, 0, 255), 25);
       
       // Call everybody back to school
       for (int i = 0; i < STUDENT_COUNT; i++) {
@@ -337,7 +353,7 @@ class Controller
       
       delay(300);
       this->playTone(1898, 75);
-      this->animateSolid(strip.Color(0, 0, 255));
+      this->animateSolid(ring.Color(0, 0, 255));
       this->playTone(1126, 150);
       delay(1000);
        
