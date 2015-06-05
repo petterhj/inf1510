@@ -1,3 +1,7 @@
+/*======================================================
+   SFOuino - INF1510 - v15
+  ======================================================*/
+
 // Libraries
 #include <Wire.h>
 #include <Adafruit_NFCShield_I2C.h>
@@ -6,34 +10,37 @@
 #include <MemoryFree.h>
 
 // Pins
-#define COMPIN   4
-#define DISTPIN  0
-#define SPKRPIN  8
-#define DIGPIN   6
-#define DIGPINS  5
-#define PXLCNT   24
-#define PXLCNTS  3
-#define IRQ     (2)
-#define RESET   (3)
+//#define COMPIN   4  // Shelf unit
+#define DISTPIN  0    // Distance sensor
+#define SPKRPIN  8    // Speaker
+#define NPRPIN   6    // NeoPixel-ring
+#define PXLCNTR 24        // Pixel count
+#define NPSPIN   5    // NeoPixel-strip
+#define PXLCNTS  3        // Pixel count
+#define IRQ      2    // NFC
+#define RESET    3    // NFC
 
 // Config
-const int NFC_TIMEOUT      = 250;
-const int RESET_TAG        = 498;
-const int STUDENT_COUNT    = 3;
-const int MAX_BRIGHTNESS   = 255;
-const int BASE_BRIGHTNESS  = 55;
+const int NFC_TIMEOUT      = 250;   // Prevent NFC blocking distance sensor
+const int RESET_TAG        = 498;   // Master NFC-tag ID
+const int STUDENT_COUNT    = 3;     // Student count
+const int MAX_BRIGHTNESS   = 255;   // NeoPixel maximum brightness
+const int BASE_BRIGHTNESS  = 55;    // NeoPixel base brightness
 
 // Intialize NFC shield
 Adafruit_NFCShield_I2C nfc(IRQ, RESET);
 
-// Intialize NeoPixel
-Adafruit_NeoPixel ring = Adafruit_NeoPixel(PXLCNT, DIGPIN, NEO_GRB + NEO_KHZ800);
-Adafruit_NeoPixel strip = Adafruit_NeoPixel(PXLCNTS, DIGPINS, NEO_GRB + NEO_KHZ800);
-
 uint8_t uid[] = {0, 0, 0, 0, 0, 0, 0}; // Buffer to store the returned UID
 uint8_t uidLength; // Length of the UID
 
-// Class: Student
+// Intialize NeoPixel
+Adafruit_NeoPixel ring = Adafruit_NeoPixel(PXLCNTR, NPRPIN, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(PXLCNTS, NPSPIN, NEO_GRB + NEO_KHZ800);
+
+
+/*======================================================
+   Class: Student
+  ======================================================*/
 class Student
 {
   // Public
@@ -67,29 +74,27 @@ class Student
      return this->atSchool;
    }
  
-   // Update shelf status
+  // Update shelf status
   virtual void updateShelf() {
     Serial.print(" * Updating shelf: ");
     Serial.print(this->shelfId);
     Serial.print(", turn ");
     
-    /*
-    // Communicate
+    
+    /* //Communicate with shelf-unit
     Wire.beginTransmission(COMPIN);
     Wire.write(this->shelfId);
      
     if (this->atSchool) {
       Wire.write(1); // Turn on (green)
-      Serial.println("ON");
     }
     else {
       Wire.write(0); // Turn off (red)
-      Serial.println("OFF");
     }
      
-    Wire.endTransmission();
-    */
+    Wire.endTransmission();*/
     
+    // Control strip directly
     if (this->atSchool) {
       strip.setPixelColor(this->shelfId, strip.Color(0, 255, 0)); // Green
       Serial.println("ON");
@@ -101,7 +106,10 @@ class Student
   }  
 };
 
-// Class: Controller
+
+/*======================================================
+   Class: Controller
+  ======================================================*/
 class Controller 
 {
   // Public
@@ -111,17 +119,20 @@ class Controller
       Serial.println("Initializing controller..");
       
       // Join I2C bus
-      //Wire.begin();
+      //Wire.begin(); // Master-slave communication betwen Arduinos
     
       // NFC
       nfc.begin();
       nfc.SAMConfig();
-      nfc.setPassiveActivationRetries(NFC_TIMEOUT);
+      nfc.setPassiveActivationRetries(NFC_TIMEOUT); // Set timeout to prevent blocking,
+                                                    // allowing distance sensor reads
   
-      // NeoPixel
+      // Wall unit LED-ring
       ring.begin();
       ring.setBrightness(BASE_BRIGHTNESS);
       ring.show();
+
+      // Shelf LED-strip
       strip.begin();
       strip.setBrightness(MAX_BRIGHTNESS);
       
@@ -171,6 +182,8 @@ class Controller
       int cm = (sensorValue * 0.497) * 2.54;
       int lvl = BASE_BRIGHTNESS;
       
+      // Dynamically change light intensity 
+      // when within 200cm
       if (cm < 200) {
         lvl = (MAX_BRIGHTNESS - cm);
       }
@@ -251,29 +264,29 @@ class Controller
     
     // State: Working
     virtual void working() {
-      this->animateChase(ring.Color(255, 155, 0)); // Orange
+      this->animateChase(ring.Color(255, 155, 0));  // Orange
     }
     
     // Result: Success
     virtual void success() {
       this->playTone(1001, 75);
-      animateSolid(ring.Color(0, 255, 0));
+      animateSolid(ring.Color(0, 255, 0));  // Green
       this->playTone(749, 200);
       delay(100);
       animateSolid(0);
       delay(100);
-      animateSolid(ring.Color(0, 255, 0));
+      animateSolid(ring.Color(0, 255, 0));  // Green
       delay(200);
       animateSolid(0);
       delay(200);
-      animateSolid(ring.Color(0, 255, 0));
+      animateSolid(ring.Color(0, 255, 0));  // Green
       delay(2000); 
     }
     
     // Result: Check
     virtual void check() {
       this->playTone(749, 150);
-      animateSolid(ring.Color(0, 255, 0));
+      animateSolid(ring.Color(0, 255, 0));  // Green
       delay(1000);
     }
     
@@ -293,7 +306,7 @@ class Controller
       delay(2000); 
     }
     
-    // Animation: Chase
+    // Animation: Chase (indicate "working" state)
     virtual void animateChase(uint32_t color, uint8_t wait = 50) {
       for (int j = 0; j < 10; j++) {
         for (int q = 0; q < 3; q++) {
@@ -311,9 +324,9 @@ class Controller
       }
     }
     
-    // Animation: Wipe
+    // Animation: Wipe (indicate change of state, e.g. from success to ready)
     void animateWipe(uint32_t color, uint8_t wait) {
-      for(uint16_t i=0; i<ring.numPixels(); i++) {
+      for(uint16_t i = 0; i < ring.numPixels(); i++) {
           ring.setPixelColor(i, color); 
           ring.show();
           delay(wait);
@@ -353,7 +366,7 @@ class Controller
       
       delay(300);
       this->playTone(1898, 75);
-      this->animateSolid(ring.Color(0, 0, 255));
+      this->animateSolid(ring.Color(0, 0, 255));  // Blue
       this->playTone(1126, 150);
       delay(1000);
        
@@ -361,7 +374,10 @@ class Controller
       this->ready();
     }
 };
+
+// Controller (wall unit)
 Controller *ctrl;
+
 // Setup
 void setup() {
   Serial.begin(9600);
@@ -369,7 +385,7 @@ void setup() {
   // Controller
   ctrl = new Controller();
   
-  // Students
+  // Add dummy students
   ctrl->addStudent(new Student(475, 0, "Ida"));
   ctrl->addStudent(new Student(283, 1, "Per"));
   ctrl->addStudent(new Student(202, 2, "Ola"));
@@ -380,7 +396,7 @@ void setup() {
 
 // Loop: Listener  
 void loop() {
-  // Detect NFC tag
+  // Wait for NFC tag (until timeout)
   if (nfc.readPassiveTargetID(PN532_MIFARE_ISO14443A, uid, &uidLength)) {
     ctrl->tagDetected();
   }
